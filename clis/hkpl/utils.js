@@ -8,6 +8,7 @@ export const HKPL_WEBCAT_DOMAIN = 'webcat.hkpl.gov.hk';
 const WEB_BASE = `https://${HKPL_DOMAIN}`;
 const WEBCAT_BASE = `https://${HKPL_WEBCAT_DOMAIN}`;
 const ACCOUNT_URL = `${WEBCAT_BASE}/wicket/bookmarkable/com.vtls.chamo.webapp.component.patron.PatronAccountPage?theme=WEB&locale=zh_TW`;
+const MOBILE_ACCOUNT_URL = `${WEBCAT_BASE}/wicket/bookmarkable/com.vtls.chamo.webapp.component.patron.PatronAccountPage?theme=mobile&locale=zh_TW`;
 const LOGIN_POST_URL = `${WEB_BASE}/iw/login.php`;
 
 export function resolveCredentials(args) {
@@ -263,6 +264,33 @@ export async function fetchAccountHtml(session) {
     return html;
 }
 
+export async function fetchHistoryHtml(session) {
+    const response = await request(session.jar, MOBILE_ACCOUNT_URL);
+    let html = await readTextResponse(response, 'mobile account page');
+    html = await submitAutoFormIfPresent(session.jar, html, MOBILE_ACCOUNT_URL);
+    if (html.includes('登入我的帳戶') || html.includes('ERR-SSO-0001')) {
+        throw new AuthRequiredError(HKPL_DOMAIN, 'HKPL mobile account page requires login.');
+    }
+    if (!html.includes('讀者借還記錄') && !html.includes('執行日期 / 時間')) {
+        throw new EmptyResultError('hkpl history', 'Could not find checkout-history content on HKPL account page.');
+    }
+    const pageLinks = [...html.matchAll(/<a[^>]*href=["']([^"']*historyTable-topToolbars[^"']*pageLink[^"']*)["'][^>]*>/gi)]
+        .map((match) => decodeHtml(match[1]));
+    const seen = new Set();
+    const pages = [html];
+    for (const href of pageLinks) {
+        const url = new URL(href, MOBILE_ACCOUNT_URL).href;
+        if (seen.has(url)) continue;
+        seen.add(url);
+        const pageResponse = await request(session.jar, url, {
+            headers: { Referer: MOBILE_ACCOUNT_URL },
+        });
+        const pageHtml = await readTextResponse(pageResponse, 'history page');
+        pages.push(pageHtml);
+    }
+    return pages.join('\n');
+}
+
 export function parsePatronName(html) {
     const match = html.match(/<h1[^>]*class=["'][^"']*["'][^>]*>([\s\S]*?)<\/h1>/i);
     return match ? stripTags(match[1]) : '';
@@ -282,35 +310,53 @@ export function parseCheckoutHistoryStatus(html) {
 }
 
 export function parseCheckoutHistoryRows(html) {
-    const headerIndex = html.indexOf('執行日期 / 時間');
-    if (headerIndex < 0) return [];
-    const endIndex = html.indexOf('CSV 格式', headerIndex);
-    const sourceHtml = html.slice(headerIndex, endIndex > headerIndex ? endIndex : undefined);
     const rows = [];
-    const rowRe = /<tr class=["'](?:odd|even)["'][^>]*>([\s\S]*?)<\/tr>/gi;
+    const seen = new Set();
     let index = 0;
-    for (const rowMatch of sourceHtml.matchAll(rowRe)) {
-        const cells = [...rowMatch[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map((m) => m[1]);
-        if (cells.length < 8) continue;
-        const titleMatch = cells[1].match(/<a[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i);
-        const itemUrl = titleMatch ? new URL(decodeHtml(titleMatch[1]), WEBCAT_BASE + '/lib/item').href : '';
-        const itemId = itemUrl.match(/chamo:(\d+)/)?.[1] || '';
-        index += 1;
-        rows.push({
-            index,
-            actionAt: stripTags(cells[0]),
-            title: titleMatch ? stripTags(titleMatch[2]) : stripTags(cells[1]),
-            action: stripTags(cells[2]),
-            barcode: stripTags(cells[3]),
-            reference: stripTags(cells[4]),
-            location: stripTags(cells[5]),
-            channel: stripTags(cells[6]),
-            renewCount: stripTags(cells[7]) || '',
-            itemId,
-            itemUrl,
-        });
+    for (const segment of historySegments(html)) {
+        const rowRe = /<tr class=["'](?:odd|even)["'][^>]*>([\s\S]*?)<\/tr>/gi;
+        for (const rowMatch of segment.matchAll(rowRe)) {
+            const cells = [...rowMatch[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map((m) => m[1]);
+            if (cells.length < 8) continue;
+            const titleMatch = cells[1].match(/<a[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i);
+            const itemUrl = titleMatch ? new URL(decodeHtml(titleMatch[1]), WEBCAT_BASE + '/lib/item').href : '';
+            const itemId = itemUrl.match(/chamo:(\d+)/)?.[1] || '';
+            const actionAt = stripTags(cells[0]);
+            const title = titleMatch ? stripTags(titleMatch[2]) : stripTags(cells[1]);
+            const action = stripTags(cells[2]);
+            const barcode = stripTags(cells[3]);
+            const reference = stripTags(cells[4]);
+            const key = `${actionAt}|${reference}|${barcode}|${action}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            index += 1;
+            rows.push({
+                index,
+                actionAt,
+                title,
+                action,
+                barcode,
+                reference,
+                location: stripTags(cells[5]),
+                channel: stripTags(cells[6]),
+                renewCount: stripTags(cells[7]) || '',
+                itemId,
+                itemUrl,
+            });
+        }
     }
     return rows;
+}
+
+function historySegments(html) {
+    const segments = [];
+    let start = html.indexOf('執行日期 / 時間');
+    while (start >= 0) {
+        const end = html.indexOf('CSV 格式', start);
+        segments.push(html.slice(start, end > start ? end : undefined));
+        start = html.indexOf('執行日期 / 時間', end > start ? end : start + 1);
+    }
+    return segments;
 }
 
 export function parseLoans(html) {

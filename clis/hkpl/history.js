@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { HKPL_DOMAIN, createAuthenticatedSession, fetchAccountHtml, parseCheckoutHistoryRows, parseCheckoutHistoryStatus } from './utils.js';
+import { HKPL_DOMAIN, createAuthenticatedSession, fetchHistoryHtml, parseCheckoutHistoryRows, parseCheckoutHistoryStatus } from './utils.js';
 
 cli({
     site: 'hkpl',
@@ -16,7 +16,7 @@ cli({
     columns: ['index', 'actionAt', 'title', 'action', 'barcode', 'reference', 'location', 'channel', 'renewCount', 'itemId', 'itemUrl'],
     func: async (args) => {
         const session = await createAuthenticatedSession(args);
-        const html = await fetchAccountHtml(session);
+        const html = await fetchHistoryHtml(session);
         const status = parseCheckoutHistoryStatus(html);
         const rows = parseCheckoutHistoryRows(html);
         if (rows.length > 0) return rows;
