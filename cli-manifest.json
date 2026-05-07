@@ -11272,6 +11272,110 @@
   },
   {
     "site": "hkpl",
+    "name": "detail",
+    "description": "Get HKPL bibliographic details for one item",
+    "access": "read",
+    "domain": "www.hkpl.gov.hk",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "HKPL item id, chamo:id, or item URL"
+      }
+    ],
+    "columns": [
+      "itemId",
+      "title",
+      "author",
+      "callNumber",
+      "publisher",
+      "publicationYear",
+      "isbn",
+      "language",
+      "subject",
+      "notes",
+      "coverImageUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "hkpl/detail.js",
+    "sourceFile": "hkpl/detail.js"
+  },
+  {
+    "site": "hkpl",
+    "name": "download",
+    "description": "Download HKPL item cover image when available",
+    "access": "read",
+    "domain": "www.hkpl.gov.hk",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "HKPL item id, chamo:id, or item URL"
+      },
+      {
+        "name": "output",
+        "type": "str",
+        "default": "./hkpl-downloads",
+        "required": false,
+        "help": "Output directory"
+      }
+    ],
+    "columns": [
+      "itemId",
+      "title",
+      "status",
+      "size",
+      "path",
+      "imageUrl"
+    ],
+    "type": "js",
+    "modulePath": "hkpl/download.js",
+    "sourceFile": "hkpl/download.js"
+  },
+  {
+    "site": "hkpl",
+    "name": "history",
+    "description": "Check HKPL returned-item checkout history availability",
+    "access": "read",
+    "domain": "www.hkpl.gov.hk",
+    "strategy": "cookie",
+    "browser": false,
+    "args": [
+      {
+        "name": "username",
+        "type": "str",
+        "required": false,
+        "help": "HKPL account number; can also use HKPL_USERNAME"
+      },
+      {
+        "name": "password",
+        "type": "str",
+        "required": false,
+        "help": "HKPL password; can also use HKPL_PASSWORD"
+      }
+    ],
+    "columns": [
+      "status",
+      "historyEnabled",
+      "settingValue",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "hkpl/history.js",
+    "sourceFile": "hkpl/history.js",
+    "navigateBefore": "https://www.hkpl.gov.hk"
+  },
+  {
+    "site": "hkpl",
     "name": "loans",
     "description": "List borrowed items from a Hong Kong Public Libraries account",
     "access": "read",
@@ -11294,13 +11398,15 @@
     ],
     "columns": [
       "index",
+      "itemId",
       "title",
       "barcode",
       "dueDate",
       "renewCount",
       "renewLimit",
       "renewable",
-      "selectValue"
+      "selectValue",
+      "itemUrl"
     ],
     "type": "js",
     "modulePath": "hkpl/loans.js",

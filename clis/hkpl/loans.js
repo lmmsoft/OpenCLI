@@ -14,7 +14,7 @@ cli({
         { name: 'username', help: 'HKPL account number; can also use HKPL_USERNAME' },
         { name: 'password', help: 'HKPL password; can also use HKPL_PASSWORD' },
     ],
-    columns: ['index', 'title', 'barcode', 'dueDate', 'renewCount', 'renewLimit', 'renewable', 'selectValue'],
+    columns: ['index', 'itemId', 'title', 'barcode', 'dueDate', 'renewCount', 'renewLimit', 'renewable', 'selectValue', 'itemUrl'],
     func: async (args) => {
         const session = await createAuthenticatedSession(args);
         const html = await fetchAccountHtml(session);

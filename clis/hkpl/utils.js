@@ -69,6 +69,19 @@ function stripTags(value) {
     return decodeHtml(String(value || '').replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
 }
 
+export function sanitizeItemId(value) {
+    const raw = String(value || '').trim();
+    const match = raw.match(/(?:chamo:)?(\d{3,})/);
+    if (!match) {
+        throw new ArgumentError('HKPL item id must be numeric or chamo:<id>', 'Example: opencli hkpl detail 3243877');
+    }
+    return match[1];
+}
+
+export function buildItemUrl(itemId) {
+    return `${WEBCAT_BASE}/lib/item?id=chamo:${encodeURIComponent(itemId)}&theme=WEB&locale=zh_TW`;
+}
+
 function splitSetCookieHeader(header) {
     if (!header) return [];
     return String(header).split(/,(?=\s*[^;,=\s]+=[^;,]*)/g).map((part) => part.trim()).filter(Boolean);
@@ -255,6 +268,19 @@ export function parsePatronName(html) {
     return match ? stripTags(match[1]) : '';
 }
 
+export function parseCheckoutHistoryStatus(html) {
+    const match = html.match(/id=["']patron\.maintainCheckoutHistory["'][^>]*>([\s\S]*?)<\/label>/i);
+    const value = match ? stripTags(match[1]) : '';
+    const enabled = value === '是' || /^yes$/i.test(value);
+    return {
+        enabled,
+        value,
+        message: enabled
+            ? 'HKPL account says checkout history is enabled, but this adapter has not found a returned-items table in the current account page.'
+            : 'HKPL account setting "儲存借還記錄 (最多12個月)" is disabled, so returned-item history is not available from the account page.',
+    };
+}
+
 export function parseLoans(html) {
     const renewalForm = html.match(/<form id=["'][^"']+["'] method=["']post["'] action=["'][^"']*renewalForm[^"']*["'][^>]*>([\s\S]*?)<\/form>/i);
     const sourceHtml = renewalForm ? renewalForm[1] : html;
@@ -267,12 +293,15 @@ export function parseLoans(html) {
         const cells = [...rowHtml.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map((m) => m[1]);
         if (cells.length < 6) continue;
         const titleMatch = cells[1].match(/<a[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i);
+        const itemUrl = titleMatch ? new URL(decodeHtml(titleMatch[1]), WEBCAT_BASE + '/lib/item').href : '';
+        const itemId = itemUrl.match(/chamo:(\d+)/)?.[1] || '';
         const renewText = stripTags(cells[5]);
         const selectionText = stripTags(cells[0]);
         const renewMatch = renewText.match(/(\d+)\s*\([^0-9]*(\d+)/);
         index += 1;
         rows.push({
             index,
+            itemId,
             title: titleMatch ? stripTags(titleMatch[2]) : stripTags(cells[1]),
             barcode: stripTags(cells[3]),
             dueDate: stripTags(cells[4]),
@@ -280,9 +309,54 @@ export function parseLoans(html) {
             renewLimit: renewMatch ? Number(renewMatch[2]) : null,
             renewable: checkbox ? 'yes' : 'no',
             selectValue: checkbox ? decodeHtml(checkbox[1]) : selectionText,
+            itemUrl,
         });
     }
     return rows;
+}
+
+export async function fetchItemHtml(itemIdOrUrl) {
+    const itemId = sanitizeItemId(itemIdOrUrl);
+    const jar = new CookieJar();
+    const response = await request(jar, buildItemUrl(itemId));
+    const html = await readTextResponse(response, 'item detail');
+    if (!html.includes('資料細項') && !html.includes('itemFields')) {
+        throw new EmptyResultError('hkpl detail', `HKPL item ${itemId} did not return a readable detail page.`);
+    }
+    return { itemId, url: buildItemUrl(itemId), html };
+}
+
+export function parseItemDetail(itemId, url, html) {
+    const title = stripTags(html.match(/<h1[^>]*class=["']title["'][^>]*>([\s\S]*?)<\/h1>/i)?.[1] || '');
+    const author = stripTags(html.match(/<a[^>]*class=["']author["'][^>]*>([\s\S]*?)<\/a>/i)?.[1] || '');
+    const coverImageUrl = decodeHtml(html.match(/<div[^>]*id=["']bibliographicImage["'][\s\S]*?<img[^>]*src=["']([^"']+)["']/i)?.[1] || '');
+    const fields = {};
+    for (const match of html.matchAll(/<td class=["']label["'][^>]*>([\s\S]*?)<\/td>\s*<td>([\s\S]*?)<\/td>/gi)) {
+        const label = stripTags(match[1]);
+        const value = stripTags(match[2]);
+        if (label) fields[label] = value;
+    }
+    return {
+        itemId,
+        title,
+        author: fields['著者'] || author,
+        callNumber: fields['索書號'] || '',
+        publisher: fields['出版者'] || '',
+        publicationYear: fields['出版年份'] || '',
+        isbn: fields['標準號碼'] || '',
+        language: fields['語言'] || '',
+        subject: fields['主題'] || '',
+        notes: fields['附註'] || '',
+        coverImageUrl,
+        url,
+    };
+}
+
+export function getCoverExtension(url) {
+    const pathname = new URL(url).pathname;
+    const ext = pathname.match(/\.[a-z0-9]+$/i)?.[0]?.toLowerCase();
+    if (ext === '.gif' || ext === '.jpg' || ext === '.jpeg' || ext === '.png' || ext === '.webp') return ext;
+    return '.gif';
 }
 
 function extractRenewalForm(html) {
