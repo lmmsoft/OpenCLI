@@ -18,10 +18,10 @@ Do not commit real card numbers or passwords. For scheduled jobs, prefer environ
 - `opencli hkpl login`: verify account login and show the patron name.
 - `opencli hkpl loans`: list currently borrowed items, including item id, barcode, due date, renewal counts, and item URL.
 - `opencli hkpl renew`: renew items due within `--due-within-days` days, default 3. Use `--dry-run` to preview.
-- `opencli hkpl history`: check whether returned-item checkout history is available. HKPL only exposes this when the account has "儲存借還記錄 (最多12個月)" enabled.
+- `opencli hkpl history`: list returned-item checkout history rows when the account has "儲存借還記錄 (最多12個月)" enabled.
 - `opencli hkpl detail <itemId>`: fetch bibliographic details such as title, author, call number, publisher, year, ISBN, language, subject, and cover URL.
 - `opencli hkpl download <itemId>`: download the cover image when HKPL/Syndetics provides one.
 
 ## Notes
 
-HKPL's account page does not show original borrow dates in the current loans table. It shows due dates and renewal counts. Returned-item history was not available for the verified accounts because the checkout-history setting was disabled.
+HKPL's account page does not show original borrow dates in the current loans table. It shows due dates and renewal counts. Returned-item history only appears after the checkout-history setting is enabled; HKPL may not backfill rows from before that setting was turned on.

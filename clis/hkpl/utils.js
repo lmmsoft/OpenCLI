@@ -281,6 +281,38 @@ export function parseCheckoutHistoryStatus(html) {
     };
 }
 
+export function parseCheckoutHistoryRows(html) {
+    const headerIndex = html.indexOf('執行日期 / 時間');
+    if (headerIndex < 0) return [];
+    const endIndex = html.indexOf('CSV 格式', headerIndex);
+    const sourceHtml = html.slice(headerIndex, endIndex > headerIndex ? endIndex : undefined);
+    const rows = [];
+    const rowRe = /<tr class=["'](?:odd|even)["'][^>]*>([\s\S]*?)<\/tr>/gi;
+    let index = 0;
+    for (const rowMatch of sourceHtml.matchAll(rowRe)) {
+        const cells = [...rowMatch[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map((m) => m[1]);
+        if (cells.length < 8) continue;
+        const titleMatch = cells[1].match(/<a[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i);
+        const itemUrl = titleMatch ? new URL(decodeHtml(titleMatch[1]), WEBCAT_BASE + '/lib/item').href : '';
+        const itemId = itemUrl.match(/chamo:(\d+)/)?.[1] || '';
+        index += 1;
+        rows.push({
+            index,
+            actionAt: stripTags(cells[0]),
+            title: titleMatch ? stripTags(titleMatch[2]) : stripTags(cells[1]),
+            action: stripTags(cells[2]),
+            barcode: stripTags(cells[3]),
+            reference: stripTags(cells[4]),
+            location: stripTags(cells[5]),
+            channel: stripTags(cells[6]),
+            renewCount: stripTags(cells[7]) || '',
+            itemId,
+            itemUrl,
+        });
+    }
+    return rows;
+}
+
 export function parseLoans(html) {
     const renewalForm = html.match(/<form id=["'][^"']+["'] method=["']post["'] action=["'][^"']*renewalForm[^"']*["'][^>]*>([\s\S]*?)<\/form>/i);
     const sourceHtml = renewalForm ? renewalForm[1] : html;
