@@ -11271,6 +11271,124 @@
     "sourceFile": "hf/top.js"
   },
   {
+    "site": "hkpl",
+    "name": "loans",
+    "description": "List borrowed items from a Hong Kong Public Libraries account",
+    "access": "read",
+    "domain": "www.hkpl.gov.hk",
+    "strategy": "cookie",
+    "browser": false,
+    "args": [
+      {
+        "name": "username",
+        "type": "str",
+        "required": false,
+        "help": "HKPL account number; can also use HKPL_USERNAME"
+      },
+      {
+        "name": "password",
+        "type": "str",
+        "required": false,
+        "help": "HKPL password; can also use HKPL_PASSWORD"
+      }
+    ],
+    "columns": [
+      "index",
+      "title",
+      "barcode",
+      "dueDate",
+      "renewCount",
+      "renewLimit",
+      "renewable",
+      "selectValue"
+    ],
+    "type": "js",
+    "modulePath": "hkpl/loans.js",
+    "sourceFile": "hkpl/loans.js",
+    "navigateBefore": "https://www.hkpl.gov.hk"
+  },
+  {
+    "site": "hkpl",
+    "name": "login",
+    "description": "Verify Hong Kong Public Libraries account login",
+    "access": "read",
+    "domain": "www.hkpl.gov.hk",
+    "strategy": "cookie",
+    "browser": false,
+    "args": [
+      {
+        "name": "username",
+        "type": "str",
+        "required": false,
+        "help": "HKPL account number; can also use HKPL_USERNAME"
+      },
+      {
+        "name": "password",
+        "type": "str",
+        "required": false,
+        "help": "HKPL password; can also use HKPL_PASSWORD"
+      }
+    ],
+    "columns": [
+      "name",
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "hkpl/login.js",
+    "sourceFile": "hkpl/login.js",
+    "navigateBefore": "https://www.hkpl.gov.hk"
+  },
+  {
+    "site": "hkpl",
+    "name": "renew",
+    "description": "Batch renew HKPL borrowed items due within N days",
+    "access": "write",
+    "domain": "www.hkpl.gov.hk",
+    "strategy": "cookie",
+    "browser": false,
+    "args": [
+      {
+        "name": "username",
+        "type": "str",
+        "required": false,
+        "help": "HKPL account number; can also use HKPL_USERNAME"
+      },
+      {
+        "name": "password",
+        "type": "str",
+        "required": false,
+        "help": "HKPL password; can also use HKPL_PASSWORD"
+      },
+      {
+        "name": "due-within-days",
+        "type": "int",
+        "default": 3,
+        "required": false,
+        "help": "Renew items due within this many days (default: 3)"
+      },
+      {
+        "name": "dry-run",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Only list items that would be renewed"
+      }
+    ],
+    "columns": [
+      "status",
+      "selectedCount",
+      "successCount",
+      "reference",
+      "title",
+      "barcode",
+      "newDueDate"
+    ],
+    "type": "js",
+    "modulePath": "hkpl/renew.js",
+    "sourceFile": "hkpl/renew.js",
+    "navigateBefore": "https://www.hkpl.gov.hk"
+  },
+  {
     "site": "homebrew",
     "name": "cask",
     "description": "Fetch a Homebrew cask's metadata (version, homepage, deprecation, download URL)",
