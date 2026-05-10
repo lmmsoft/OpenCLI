@@ -11344,7 +11344,7 @@
   {
     "site": "hkpl",
     "name": "history",
-    "description": "Check HKPL returned-item checkout history availability",
+    "description": "List HKPL returned-item checkout history when enabled",
     "access": "read",
     "domain": "www.hkpl.gov.hk",
     "strategy": "cookie",
@@ -11364,10 +11364,17 @@
       }
     ],
     "columns": [
-      "status",
-      "historyEnabled",
-      "settingValue",
-      "message"
+      "index",
+      "actionAt",
+      "title",
+      "action",
+      "barcode",
+      "reference",
+      "location",
+      "channel",
+      "renewCount",
+      "itemId",
+      "itemUrl"
     ],
     "type": "js",
     "modulePath": "hkpl/history.js",
