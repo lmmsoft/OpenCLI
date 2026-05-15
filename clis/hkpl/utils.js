@@ -10,6 +10,8 @@ const WEBCAT_BASE = `https://${HKPL_WEBCAT_DOMAIN}`;
 const ACCOUNT_URL = `${WEBCAT_BASE}/wicket/bookmarkable/com.vtls.chamo.webapp.component.patron.PatronAccountPage?theme=WEB&locale=zh_TW`;
 const MOBILE_ACCOUNT_URL = `${WEBCAT_BASE}/wicket/bookmarkable/com.vtls.chamo.webapp.component.patron.PatronAccountPage?theme=mobile&locale=zh_TW`;
 const LOGIN_POST_URL = `${WEB_BASE}/iw/login.php`;
+const REQUEST_TIMEOUT_MS = Number(process.env.HKPL_REQUEST_TIMEOUT_MS || 45000);
+const REQUEST_RETRIES = Number(process.env.HKPL_REQUEST_RETRIES || 4);
 
 export function resolveCredentials(args) {
     const username = String(args.username || process.env.HKPL_USERNAME || '').trim();
@@ -127,7 +129,7 @@ async function request(jar, url, options = {}, redirectCount = 0) {
     }
     headers.set('Accept-Encoding', 'identity');
 
-    const response = await nodeRequest(url, { ...options, headers });
+    const response = await nodeRequestWithRetry(url, { ...options, headers });
     jar.setFromHeaders(response.headers['set-cookie'] || []);
 
     if (response.status >= 300 && response.status < 400) {
@@ -182,9 +184,51 @@ function nodeRequest(url, options = {}) {
             });
         });
         req.on('error', reject);
+        req.setTimeout(Number(options.timeoutMs || REQUEST_TIMEOUT_MS), () => {
+            req.destroy(new Error(`HKPL request timed out after ${options.timeoutMs || REQUEST_TIMEOUT_MS}ms`));
+        });
         if (body) req.write(body);
         req.end();
     });
+}
+
+async function nodeRequestWithRetry(url, options = {}) {
+    let lastError;
+    for (let attempt = 1; attempt <= REQUEST_RETRIES; attempt += 1) {
+        try {
+            const response = await nodeRequest(url, options);
+            if (!isTransientStatus(response.status) || attempt === REQUEST_RETRIES) {
+                return response;
+            }
+            lastError = new Error(`HKPL transient HTTP ${response.status}`);
+        } catch (error) {
+            lastError = error;
+            if (!isTransientNetworkError(error) || attempt === REQUEST_RETRIES) {
+                throw error;
+            }
+        }
+        await sleep(1000 * attempt);
+    }
+    throw lastError;
+}
+
+function isTransientStatus(status) {
+    return status === 408 || status === 429 || status === 500 || status === 502 || status === 503 || status === 504 || status === 520 || status === 522 || status === 524;
+}
+
+function isTransientNetworkError(error) {
+    const message = String(error?.message || error || '').toLowerCase();
+    return error?.code === 'ECONNRESET'
+        || error?.code === 'ETIMEDOUT'
+        || error?.code === 'EAI_AGAIN'
+        || error?.code === 'ENOTFOUND'
+        || message.includes('socket hang up')
+        || message.includes('timeout')
+        || message.includes('network socket disconnected');
+}
+
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function extractInputValue(html, name) {
